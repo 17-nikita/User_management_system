@@ -17,12 +17,13 @@ class UserUpdate(BaseModel):
     username: Optional[str]
     email: Optional[EmailStr]
     password: Optional[str]
-    is_active: Optional[bool]
+   
 
 # Schema for returning user in responses
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
     id: int
-    profile: Optional[ProfileResponse] = None  # nested profile
-
+    username: str
+    email: str
+    message: str
     class Config:
         from_attributes = True
