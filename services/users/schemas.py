@@ -14,9 +14,9 @@ class UserCreate(UserBase):
 
 # Schema for updating a user
 class UserUpdate(BaseModel):
-    username: Optional[str]
-    email: Optional[EmailStr]
-    password: Optional[str]
+    username: Optional[str]=None
+    email: Optional[EmailStr]=None
+    password: Optional[str]=None
    
 
 # Schema for returning user in responses

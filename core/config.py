@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str 
     JWT_ALGORITHM: str 
     ACCESS_TOKEN_EXPIRE_MINUTES: int 
+    JWT_REFRESH_SECRET_KEY: str
+    REFRESH_TOKEN_EXPIRE_DAYS: int 
 
     class Config:
         env_file = ".env"
@@ -19,6 +21,3 @@ class Settings(BaseSettings):
 
 settings= Settings()
 
-
-# sqlite:///: Specifies that we're using SQLite.
-# ./app.db: Points to a file named app.db in the current working directory (. means the current folder).

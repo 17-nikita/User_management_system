@@ -1,9 +1,14 @@
-# services/auth/jwt/service.py
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from services.users.models import User
 from services.auth.jwt.schemas import SignupRequest, LoginRequest
-from core.common.utils import hash_password, verify_password, create_access_token
+from core.common.utils import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+)
 from core.common.exceptions import bad_request, unauthorized, internal_server_error
 
 class AuthService:
@@ -12,11 +17,6 @@ class AuthService:
         self.token_subject_field = token_subject_field
 
     def register_user(self, db: Session, payload: SignupRequest) -> Dict[str, Any]:
-        """
-        Register a new user.
-        Raises HTTPExceptions internally for invalid cases.
-        Returns a dict with user info for response.
-        """
         try:
             existing = db.query(User).filter(User.email == payload.email).first()
             if existing:
@@ -34,35 +34,52 @@ class AuthService:
             return {
                 "message": f"User '{user.username}' registered successfully",
                 "username": user.username,
-                "email": user.email
+                "email": user.email,
             }
         except Exception as e:
-            # Wrap unexpected errors
             raise internal_server_error(str(e))
 
     def authenticate_user(self, db: Session, payload: LoginRequest) -> Dict[str, Any]:
-        """
-        Authenticate a user.
-        Raises HTTPExceptions internally for invalid credentials or unexpected errors.
-        Returns a dict containing message, token, and user info.
-        """
         try:
             user = db.query(User).filter(User.email == payload.email).first()
             if not user or not verify_password(payload.password, user.hashed_password):
                 raise unauthorized("Invalid email or password")
 
             subject = getattr(user, self.token_subject_field)
-            token = create_access_token(subject=str(subject))
+            access_token = create_access_token(subject=str(subject))
+            refresh_token = create_refresh_token(subject=str(subject))
 
             return {
                 "message": f"User '{user.username}' logged in successfully",
-                "access_token": token,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
                 "token_type": "bearer",
-                "email": user.email
+                "email": user.email,
             }
         except Exception as e:
             raise internal_server_error(str(e))
 
+    def refresh_tokens(self, refresh_token: str) -> Dict[str, Any]:
+        """
+        Validate refresh token and issue new tokens.
+        """
+        try:
+            payload = decode_refresh_token(refresh_token)
+            if not payload or "sub" not in payload:
+                raise unauthorized("Invalid refresh token")
 
-# Module-level instance for convenience
+            subject = payload["sub"]
+            new_access_token = create_access_token(subject)
+            new_refresh_token = create_refresh_token(subject)
+
+            return {
+                "access_token": new_access_token,
+                "refresh_token": new_refresh_token,
+                "token_type": "bearer",
+            }
+        except Exception as e:
+            raise unauthorized(f"Token refresh failed: {e}")
+
+
+# Instance
 auth_service = AuthService(token_subject_field="email")

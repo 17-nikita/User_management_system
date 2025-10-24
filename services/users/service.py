@@ -5,7 +5,7 @@ from services.users.models import User
 from services.users.profile.models import Profile
 from services.users.schemas import UserUpdate
 from core.common.exceptions import not_found, internal_server_error
-
+from core.common.utils import hash_password
 class UserService:
 
     def get_current_user_info(self, user: User) -> Dict[str, Any]:
@@ -21,20 +21,68 @@ class UserService:
             "email": user.email
         }
 
-    def update_current_user(self, db: Session, user: User, updates: UserUpdate) -> Dict[str, Any]:
-        try:
-            for field, value in updates.dict(exclude_unset=True).items():
-                setattr(user, field, value)
-            db.commit()
-            db.refresh(user)
-            return {
+    # def update_current_user(self, db: Session, user: User, updates: UserUpdate) -> Dict[str, Any]:
+    #     updated = False
+
+    #     if updates.username and updates.username != user.username:
+    #         user.username = updates.username
+    #         updated = True
+    #     if updates.email and updates.email != user.email:
+    #         user.email = updates.email
+    #         updated = True
+    #     if updates.password:
+    #         user.hashed_password = hash_password(updates.password)
+    #         updated = True
+
+    #     if not updated:
+    #         return {"message": "No changes detected"}
+
+    #     try:
+    #         db.commit()
+    #         db.refresh(user)
+    #         return {
+    #             "id": user.id,
+    #             "username": user.username,
+    #             "email": user.email,
+    #             "message": f"User '{user.username}' updated successfully"
+    #         }
+    #     except Exception as e:
+    #         db.rollback()
+    #         raise internal_server_error(str(e))
+
+
+ 
+
+    def update_current_user(self,db: Session, user: User, updates: UserUpdate) -> Dict:
+        updates_dict = updates.dict(exclude_unset=True)
+
+        # Handle password separately
+        if "password" in updates_dict:
+            updates_dict["hashed_password"] = hash_password(updates_dict.pop("password"))
+
+        # Uniqueness checks
+        if "username" in updates_dict:
+            if db.query(User).filter(User.username == updates_dict["username"], User.id != user.id).first():
+                raise internal_server_error()
+        if "email" in updates_dict:
+            if db.query(User).filter(User.email == updates_dict["email"], User.id != user.id).first():
+                raise internal_server_error()
+
+        if updates_dict:
+            try:
+                db.query(User).filter(User.id == user.id).update(updates_dict)
+                db.commit()
+                db.refresh(user)
+            except Exception as e:
+                db.rollback()
+                raise internal_server_error(str(e))
+        return {
             "id": user.id,
             "username": user.username,
             "email": user.email,
-            "message": f"User '{user.username}' updated successfully"
+            "message": "User updated successfully"
         }
-        except Exception as e:
-            raise internal_server_error(str(e))
+
         
 
     def delete_current_user(self, db: Session, user: User) -> Dict[str, Any]:
